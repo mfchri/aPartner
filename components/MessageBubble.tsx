@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -36,21 +37,31 @@ export function MessageBubble({
   };
 
   return (
-    <div
-      className={`group flex w-full gap-3 px-2 sm:px-4 py-2 transition-opacity ${
+    <motion.div
+      initial={{ opacity: 0, y: 14, scale: 0.98, x: isUser ? 10 : -10 }}
+      animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      className={`group flex w-full gap-3 px-2 sm:px-4 py-2 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >
       {/* Bot Avatar */}
       {!isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-xl glass-panel flex items-center justify-center text-accent mt-0.5 shadow-sm">
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 450, damping: 25 }}
+          className="flex-shrink-0 w-8 h-8 rounded-xl glass-panel flex items-center justify-center text-accent mt-0.5 shadow-sm"
+        >
           <Bot className="w-4 h-4" />
-        </div>
+        </motion.div>
       )}
 
       {/* Bubble Container */}
-      <div
-        className={`max-w-[88%] sm:max-w-[80%] md:max-w-[72%] rounded-2xl px-4 py-3.5 relative text-sm leading-relaxed transition-all ${
+      <motion.div
+        whileHover={{ y: -1 }}
+        transition={{ duration: 0.15 }}
+        className={`max-w-[88%] sm:max-w-[80%] md:max-w-[72%] rounded-2xl px-4 py-3.5 relative text-sm leading-relaxed transition-colors shadow-sm ${
           isUser
             ? "glass-bubble-user text-foreground"
             : message.isError
@@ -118,7 +129,11 @@ export function MessageBubble({
 
             {/* Streaming Pulse indicator */}
             {isLast && isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-accent/70 rounded-sm animate-pulse align-middle" />
+              <motion.span
+                animate={{ opacity: [0.3, 1, 0.3], scale: [0.95, 1.05, 0.95] }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
+                className="inline-block w-2 h-4 ml-1 bg-accent rounded-sm align-middle shadow-sm"
+              />
             )}
           </div>
         )}
@@ -129,7 +144,9 @@ export function MessageBubble({
             isUser ? "justify-end" : "justify-start"
           }`}
         >
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={handleCopyMessage}
             className="flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             title="Copy message"
@@ -145,28 +162,35 @@ export function MessageBubble({
                 <span>Copy</span>
               </>
             )}
-          </button>
+          </motion.button>
 
           {!isUser && isLast && !isStreaming && onRegenerate && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
               onClick={onRegenerate}
               className="flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               title="Regenerate last response"
             >
               <RotateCw className="w-3 h-3" />
               <span>Regenerate</span>
-            </button>
+            </motion.button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* User Avatar */}
       {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-xl glass-panel flex items-center justify-center text-foreground/80 mt-0.5 shadow-sm">
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 450, damping: 25 }}
+          className="flex-shrink-0 w-8 h-8 rounded-xl glass-panel flex items-center justify-center text-foreground/80 mt-0.5 shadow-sm"
+        >
           <User className="w-4 h-4" />
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -194,10 +218,12 @@ function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>)
   };
 
   return (
-    <div className="relative my-3 rounded-xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40 backdrop-blur-md text-slate-200">
+    <div className="relative my-3 rounded-xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40 backdrop-blur-md text-slate-200 shadow-md">
       <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/10 text-[11px] text-slate-400">
         <span className="font-mono">Code</span>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
           onClick={handleCopyCode}
           className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300 transition-colors"
           title="Copy code"
@@ -213,7 +239,7 @@ function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>)
               <span>Copy</span>
             </>
           )}
-        </button>
+        </motion.button>
       </div>
       <pre {...props} className="p-3 text-xs overflow-x-auto font-mono">
         {children}

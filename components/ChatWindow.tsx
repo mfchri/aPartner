@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu,
   Settings,
-  Sparkles,
-  ShieldCheck,
   Bot,
   AlertCircle,
 } from "lucide-react";
@@ -99,7 +98,7 @@ export function ChatWindow({
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // Build payload messages (excluding initial greeting placeholder if needed)
+    // Build payload messages
     const currentMessages = activeSession.messages;
     const historyPayload = [
       ...currentMessages.map((m) => ({
@@ -184,14 +183,14 @@ export function ChatWindow({
                 setToastError(event.error);
               }
             } catch {
-              // ignore parse errors in chunk stream
+              // ignore parse errors
             }
           }
         }
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        // aborted cleanly by user
+        // aborted cleanly
       } else {
         const message = err instanceof Error ? err.message : "Network error during response generation";
         markLastAssistantMessageError(activeSession.id, message);
@@ -209,7 +208,6 @@ export function ChatWindow({
     const msgs = activeSession.messages;
     if (msgs.length < 2) return;
 
-    // Find the last user message
     let lastUserIndex = -1;
     for (let i = msgs.length - 1; i >= 0; i--) {
       if (msgs[i].role === "user") {
@@ -221,10 +219,7 @@ export function ChatWindow({
     if (lastUserIndex === -1) return;
 
     const lastUserPrompt = msgs[lastUserIndex].content;
-    // Remove the current assistant answer
     removeLastAssistantMessage(activeSession.id);
-
-    // Call send message with the last prompt
     handleSendMessage(lastUserPrompt);
   };
 
@@ -233,20 +228,25 @@ export function ChatWindow({
       {/* Top Bar */}
       <header className="h-16 px-4 sm:px-6 flex items-center justify-between glass-panel border-x-0 border-t-0 border-b border-white/10 dark:border-white/5 relative z-10 select-none">
         <div className="flex items-center gap-3">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={onToggleSidebar}
             className="p-2 rounded-xl glass-button text-muted-foreground hover:text-foreground"
             aria-label="Toggle navigation drawer"
           >
             <Menu className="w-5 h-5" />
-          </button>
+          </motion.button>
 
           <div className="flex items-center gap-2">
             <div className="relative">
-              <div className="w-9 h-9 rounded-2xl glass-panel flex items-center justify-center text-accent shadow-sm">
+              <motion.div
+                whileHover={{ rotate: 10, scale: 1.05 }}
+                className="w-9 h-9 rounded-2xl glass-panel flex items-center justify-center text-accent shadow-sm"
+              >
                 <Bot className="w-5 h-5" />
-              </div>
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+              </motion.div>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background animate-pulse" />
             </div>
 
             <div>
@@ -269,32 +269,43 @@ export function ChatWindow({
         <div className="flex items-center gap-2">
           <ThemeToggle />
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08, rotate: 30 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
             onClick={onOpenSettings}
             className="p-2 rounded-xl glass-button text-foreground/80 hover:text-foreground relative"
             title="Customization & Settings"
             aria-label="Open settings"
           >
             <Settings className="w-5 h-5" />
-          </button>
+          </motion.button>
         </div>
       </header>
 
-      {/* Toast Error Alert */}
-      {toastError && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 max-w-md w-11/12 p-3 rounded-2xl bg-rose-500/90 text-white backdrop-blur-md shadow-xl flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{toastError}</span>
-          </div>
-          <button
-            onClick={() => setToastError(null)}
-            className="p-1 hover:bg-white/20 rounded-lg ml-2"
+      {/* Animated Toast Error Alert */}
+      <AnimatePresence>
+        {toastError && (
+          <motion.div
+            initial={{ opacity: 0, y: -24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -24, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 400 }}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-30 max-w-md w-11/12 p-3 rounded-2xl bg-rose-500/90 text-white backdrop-blur-md shadow-xl flex items-center justify-between text-xs"
           >
-            &times;
-          </button>
-        </div>
-      )}
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{toastError}</span>
+            </div>
+            <button
+              onClick={() => setToastError(null)}
+              className="p-1 hover:bg-white/20 rounded-lg ml-2 transition-transform hover:scale-110"
+            >
+              &times;
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat Messages List */}
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-4">

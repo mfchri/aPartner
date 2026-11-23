@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Square, CornerDownLeft } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Send, Square } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
@@ -68,27 +69,45 @@ export function ChatInput({
           className="flex-1 max-h-44 min-h-[44px] bg-transparent resize-none px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none rounded-xl"
         />
 
-        {isStreaming ? (
-          <button
-            type="button"
-            onClick={onStopGeneration}
-            className="flex-shrink-0 w-10 h-10 rounded-xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-all shadow-md active:scale-95"
-            title="Stop generation"
-            aria-label="Stop generation"
-          >
-            <Square className="w-4 h-4 fill-current" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={disabled || !input.trim()}
-            className="flex-shrink-0 w-10 h-10 rounded-xl bg-accent hover:opacity-90 disabled:opacity-40 text-accent-foreground flex items-center justify-center transition-all shadow-md active:scale-95 disabled:pointer-events-none"
-            title="Send message (Enter)"
-            aria-label="Send message"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex-shrink-0 w-10 h-10 relative flex items-center justify-center">
+          <AnimatePresence mode="wait">
+            {isStreaming ? (
+              <motion.button
+                key="stop-btn"
+                initial={{ scale: 0.6, rotate: -45, opacity: 0 }}
+                animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                exit={{ scale: 0.6, rotate: 45, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                onClick={onStopGeneration}
+                className="w-10 h-10 rounded-xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-md active:scale-95"
+                title="Stop generation"
+                aria-label="Stop generation"
+              >
+                <Square className="w-4 h-4 fill-current" />
+              </motion.button>
+            ) : (
+              <motion.button
+                key="send-btn"
+                initial={{ scale: 0.6, rotate: 45, opacity: 0 }}
+                animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                exit={{ scale: 0.6, rotate: -45, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                type="submit"
+                disabled={disabled || !input.trim()}
+                className="w-10 h-10 rounded-xl bg-accent hover:opacity-90 disabled:opacity-40 text-accent-foreground flex items-center justify-center shadow-md active:scale-95 disabled:pointer-events-none"
+                title="Send message (Enter)"
+                aria-label="Send message"
+              >
+                <Send className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
       </form>
 
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/60 px-3 mt-1.5">
