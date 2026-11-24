@@ -4,10 +4,9 @@ import { buildSystemPrompt } from "./buildSystemPrompt";
 
 export const DEFAULT_ALLOWED_MODELS = [
   "gemini-3.8-flash",
-  "gemini-3.8-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
 ];
 
 export function getAllowedModels(): string[] {
@@ -77,38 +76,22 @@ export async function createGeminiStream({
     };
   });
 
-  try {
-    const responseStream = await client.models.generateContentStream({
-      model: selectedModel,
-      contents,
-      config: {
-        systemInstruction,
-        temperature,
-        maxOutputTokens,
-        abortSignal: signal,
-      },
-    });
+  const candidateChain = [
+    selectedModel,
+    ...allowed.filter((m) => m !== selectedModel),
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+  ];
+  const uniqueCandidates = [...new Set(candidateChain)];
 
-    return {
-      stream: responseStream,
-      modelUsed: selectedModel,
-    };
-  } catch (err) {
-    const errStr = (err instanceof Error ? err.message : String(err)).toLowerCase();
-    if (
-      errStr.includes("not found") ||
-      errStr.includes("404") ||
-      errStr.includes("is not supported")
-    ) {
-      const fallbackModel =
-        allowed.find((m) => m !== selectedModel && (m.includes("2.0") || m.includes("1.5"))) ||
-        "gemini-2.0-flash";
-      console.warn(
-        `[GlassChat] Model ${selectedModel} not found for this key. Automatically falling back to ${fallbackModel}.`
-      );
+  let lastError: unknown = null;
 
-      const fallbackStream = await client.models.generateContentStream({
-        model: fallbackModel,
+  for (let i = 0; i < uniqueCandidates.length; i++) {
+    const candidate = uniqueCandidates[i];
+    try {
+      const responseStream = await client.models.generateContentStream({
+        model: candidate,
         contents,
         config: {
           systemInstruction,
@@ -118,13 +101,49 @@ export async function createGeminiStream({
         },
       });
 
+      if (candidate !== selectedModel) {
+        console.warn(
+          `[GlassChat] Model '${selectedModel}' was unavailable/overloaded. Successfully served with fallback model '${candidate}'.`
+        );
+      }
+
       return {
-        stream: fallbackStream,
-        modelUsed: fallbackModel,
+        stream: responseStream,
+        modelUsed: candidate,
       };
+    } catch (err) {
+      lastError = err;
+      const errStr = (err instanceof Error ? err.message : String(err)).toLowerCase();
+
+      // Check if user cancelled request
+      if (errStr.includes("abort") || errStr.includes("cancelled")) {
+        throw err;
+      }
+
+      // Check if the error is temporary/recoverable (503 high demand, 404 model unavailable, 429 quota spike)
+      const isRecoverable =
+        errStr.includes("503") ||
+        errStr.includes("unavailable") ||
+        errStr.includes("high demand") ||
+        errStr.includes("overloaded") ||
+        errStr.includes("not found") ||
+        errStr.includes("404") ||
+        errStr.includes("is not supported") ||
+        errStr.includes("resource_exhausted") ||
+        errStr.includes("temporarily");
+
+      if (isRecoverable && i < uniqueCandidates.length - 1) {
+        console.warn(
+          `[GlassChat] Model '${candidate}' encountered high demand/error (${errStr.slice(0, 100)}). Automatically trying next candidate '${uniqueCandidates[i + 1]}'...`
+        );
+        continue;
+      }
+
+      throw err;
     }
-    throw err;
   }
+
+  throw lastError;
 }
 
 export function extractChunkText(chunk: unknown): string {
@@ -161,6 +180,18 @@ export function mapGeminiError(error: unknown): { status: number; message: strin
 
   if (lower.includes("abort") || lower.includes("cancelled")) {
     return { status: 499, message: "Request cancelled by user." };
+  }
+
+  if (
+    lower.includes("503") ||
+    lower.includes("unavailable") ||
+    lower.includes("high demand") ||
+    lower.includes("overloaded")
+  ) {
+    return {
+      status: 503,
+      message: "Google Gemini is currently experiencing high demand. Please try again in a moment, or select Gemini 3.6 Flash in Settings.",
+    };
   }
 
   if (
