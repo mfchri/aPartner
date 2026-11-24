@@ -77,21 +77,54 @@ export async function createGeminiStream({
     };
   });
 
-  const responseStream = await client.models.generateContentStream({
-    model: selectedModel,
-    contents,
-    config: {
-      systemInstruction,
-      temperature,
-      maxOutputTokens,
-      abortSignal: signal,
-    },
-  });
+  try {
+    const responseStream = await client.models.generateContentStream({
+      model: selectedModel,
+      contents,
+      config: {
+        systemInstruction,
+        temperature,
+        maxOutputTokens,
+        abortSignal: signal,
+      },
+    });
 
-  return {
-    stream: responseStream,
-    modelUsed: selectedModel,
-  };
+    return {
+      stream: responseStream,
+      modelUsed: selectedModel,
+    };
+  } catch (err) {
+    const errStr = (err instanceof Error ? err.message : String(err)).toLowerCase();
+    if (
+      errStr.includes("not found") ||
+      errStr.includes("404") ||
+      errStr.includes("is not supported")
+    ) {
+      const fallbackModel =
+        allowed.find((m) => m !== selectedModel && (m.includes("2.0") || m.includes("1.5"))) ||
+        "gemini-2.0-flash";
+      console.warn(
+        `[GlassChat] Model ${selectedModel} not found for this key. Automatically falling back to ${fallbackModel}.`
+      );
+
+      const fallbackStream = await client.models.generateContentStream({
+        model: fallbackModel,
+        contents,
+        config: {
+          systemInstruction,
+          temperature,
+          maxOutputTokens,
+          abortSignal: signal,
+        },
+      });
+
+      return {
+        stream: fallbackStream,
+        modelUsed: fallbackModel,
+      };
+    }
+    throw err;
+  }
 }
 
 export function extractChunkText(chunk: unknown): string {
@@ -154,10 +187,28 @@ export function mapGeminiError(error: unknown): { status: number; message: strin
     };
   }
 
-  if (lower.includes("api_key") || lower.includes("unauthenticated") || lower.includes("invalid api key")) {
+  if (
+    lower.includes("api_key") ||
+    lower.includes("unauthenticated") ||
+    lower.includes("invalid api key") ||
+    lower.includes("access_token_type_unsupported") ||
+    lower.includes("api key not valid")
+  ) {
     return {
-      status: 500,
-      message: "Server AI configuration error. Please check server settings.",
+      status: 401,
+      message: "Invalid Gemini API Key. Google AI Studio keys start with 'AIzaSy'. Please verify GEMINI_API_KEY in your .env.local file (https://aistudio.google.com/app/apikey).",
+    };
+  }
+
+  if (
+    lower.includes("not_found") ||
+    lower.includes("404") ||
+    lower.includes("is not found") ||
+    lower.includes("not supported for generatecontent")
+  ) {
+    return {
+      status: 404,
+      message: "The selected model was not found or is unsupported for this API key. Please select another model in Settings (e.g. gemini-2.0-flash).",
     };
   }
 
@@ -170,6 +221,6 @@ export function mapGeminiError(error: unknown): { status: number; message: strin
 
   return {
     status: 500,
-    message: "An unexpected error occurred while communicating with Gemini.",
+    message: "An unexpected error occurred while communicating with Gemini. Please check your API key and network connection.",
   };
 }

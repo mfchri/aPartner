@@ -128,7 +128,11 @@ export async function POST(req: NextRequest) {
           );
         } catch (streamErr) {
           const mapped = mapGeminiError(streamErr);
-          console.error(`[GlassChat] Gemini stream error code: ${mapped.status}`);
+          if (process.env.NODE_ENV !== "production") {
+            console.error(`[GlassChat] Stream error:`, streamErr instanceof Error ? streamErr.message : streamErr);
+          } else {
+            console.error(`[GlassChat] Gemini stream error code: ${mapped.status}`);
+          }
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({ type: "error", error: mapped.message, status: mapped.status })}\n\n`
@@ -150,7 +154,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const mapped = mapGeminiError(err);
-    console.error(`[GlassChat] Gemini initiation error code: ${mapped.status}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.error(`[GlassChat] Gemini initiation error:`, err instanceof Error ? err.message : err);
+    } else {
+      console.error(`[GlassChat] Gemini initiation error code: ${mapped.status}`);
+    }
     return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
 }
