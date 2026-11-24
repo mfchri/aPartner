@@ -10,11 +10,11 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 export default function HomePage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
-  const [allowedModels, setAllowedModels] = useState<string[]>(["gemini-2.5-flash"]);
+  const [allowedModels, setAllowedModels] = useState<string[]>(["gemini-3.8-flash"]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const { aiName } = useSettingsStore();
+  const { aiName, model, updateSettings } = useSettingsStore();
 
   const checkAuth = useCallback(async () => {
     try {
@@ -23,6 +23,10 @@ export default function HomePage() {
 
       if (data.models && Array.isArray(data.models)) {
         setAllowedModels(data.models);
+        // Automatically migrate legacy models (e.g. gemini-2.5-flash) to the current default
+        if (!data.models.includes(model) || model === "gemini-2.5-flash") {
+          updateSettings({ model: data.defaultModel || data.models[0] || "gemini-3.8-flash" });
+        }
       }
 
       if (data.setupRequired) {

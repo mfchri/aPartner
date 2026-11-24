@@ -3,10 +3,11 @@ import { ChatMessage, ChatSettings } from "./validation";
 import { buildSystemPrompt } from "./buildSystemPrompt";
 
 export const DEFAULT_ALLOWED_MODELS = [
-  "gemini-2.5-flash",
+  "gemini-3.8-flash",
+  "gemini-3.8-flash-lite",
+  "gemini-3.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
-  "gemini-2.5-flash-lite",
 ];
 
 export function getAllowedModels(): string[] {
@@ -27,7 +28,7 @@ export function getDefaultModel(): string {
   if (envModel && allowed.includes(envModel)) {
     return envModel;
   }
-  return allowed[0] || "gemini-2.5-flash";
+  return allowed[0] || "gemini-3.8-flash";
 }
 
 export function getGeminiClient(): GoogleGenAI {

@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS = {
   emoji: "few" as EmojiPreset,
   temperature: 0.7,
   maxOutputTokens: 2048,
-  model: "gemini-2.5-flash",
+  model: "gemini-3.8-flash",
   theme: "system" as ThemePreset,
   accent: "blue" as AccentPreset,
   glassIntensity: 20,

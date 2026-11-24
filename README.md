@@ -60,8 +60,8 @@ APP_PASSCODE=your_secret_passcode
 
 # Optional (recommended for production):
 AUTH_SECRET=a_random_32_character_string_for_jwt_signing
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_ALLOWED_MODELS=gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_ALLOWED_MODELS=gemini-3.8-flash,gemini-3.8-flash-lite,gemini-3.5-flash,gemini-2.0-flash,gemini-1.5-flash
 
 # Optional in local dev (in-memory rate limiting is used if omitted):
 UPSTASH_REDIS_REST_URL=https://your-database.upstash.io
@@ -115,8 +115,8 @@ Glass Chat is optimized for deployment on Vercel with streaming support.
    | `AUTH_SECRET` | 32+ character random string | Secret used to sign session cookies |
    | `UPSTASH_REDIS_REST_URL` | `https://...upstash.io` | Upstash Redis REST URL |
    | `UPSTASH_REDIS_REST_TOKEN` | `A...` | Upstash Redis REST Token |
-   | `GEMINI_MODEL` | `gemini-2.5-flash` | Default Gemini Flash model |
-   | `GEMINI_ALLOWED_MODELS` | `gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-flash-lite` | Allowlist of selectable models |
+   | `GEMINI_MODEL` | `gemini-3.8-flash` | Default Gemini Flash model |
+   | `GEMINI_ALLOWED_MODELS` | `gemini-3.8-flash,gemini-3.8-flash-lite,gemini-3.5-flash,gemini-2.0-flash,gemini-1.5-flash` | Allowlist of selectable models |
 
 4. **Deploy**:
    - Click **Deploy**. Vercel will build the project and output your live deployment URL.
