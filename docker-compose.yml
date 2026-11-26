@@ -1,0 +1,22 @@
+services:
+  glass-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glass-chat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    volumes:
+      # Persists local memories in container if Upstash Redis credentials are omitted
+      - glass_chat_data:/app/data
+
+volumes:
+  glass_chat_data:
+    driver: local
