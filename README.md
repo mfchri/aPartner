@@ -16,6 +16,19 @@ A sleek, responsive, private web-based AI chat application powered by Google Gem
   - **Hardened Inputs**: Strict Zod validation, 100 KB payload limit, 8,000 char message cap, 4,000 char custom prompt limit, and cross-site origin verification.
   - **No Search Engine Indexing**: `robots: noindex, nofollow` metadata and `robots.txt` disallow to protect private endpoints.
   - **Strict CSP Headers**: Content Security Policy, X-Frame-Options (`DENY`), and Permissions-Policy blocking camera/mic/geo.
+- **🧠 Long-Term Persistent Memory (v2)**:
+  - **Cross-Session & Cross-Device**: Retains durable personal facts, coding preferences, project context, and language habits across all chats and devices.
+  - **Serverless Storage Architecture**: Upstash Redis hash (`glasschat:memories`) for production zero-filesystem serverless persistence, with an atomic local JSON file adapter (`data/memory.json`) for local development. Fails closed in production if unconfigured.
+  - **Intelligent Modes**:
+    - **Smart (Default)**: Auto-extracts facts in the background every N turns or on triggers, alerting you with a glass toast notification and instant `[Undo]` / `[Edit]`.
+    - **Ask First**: Auto-extracted suggestions go into a pending review queue for manual approval.
+    - **Manual**: Only saves what you add in Settings or explicitly command in chat.
+    - **Off**: Complete deactivation of memory retrieval and storage.
+  - **Natural Chat Commands**: Say *"remember that I prefer TypeScript"* or *"ingat bahwa..."* to save directly; say *"forget that..."* or *"lupakan..."* to find and delete memories with undo toast.
+  - **Sensitive Data Shield**: Dual-layer protection (LLM extraction prompt constraints + strict regex blocklists) prevents storing API keys, passwords, credit cards, ID numbers, home addresses, and financial/medical details.
+  - **Memory Inspection Badge**: Brain badge (`🧠`) on assistant responses reveals the exact facts injected for that reply.
+  - **Temporary Chat Mode**: Toggle ghost mode anytime to chat completely off-the-record (no memory recall, no fact extraction).
+  - **Full Control & Privacy**: Pin memories for priority prompt injection, inline editing, search/category filtering, JSON export/import backups, and "Forget Everything" with confirmation.
 - **🎨 Custom AI Persona & Talking Style**:
   - **Persona**: AI Name (default "Aria"), User Name, Custom Greeting (with `{{name}}` interpolation), and Custom System Instructions.
   - **Tone Presets**: Friendly, Casual, Professional, Playful, or Concise.
@@ -142,36 +155,51 @@ Glass Chat is optimized for deployment on Vercel with streaming support.
 ```
 ├── app/
 │   ├── api/
-│   │   ├── auth/route.ts       # Passcode verification, JWT cookie, brute-force guard
-│   │   └── chat/route.ts       # Gemini streaming handler, rate limiter, input validation
-│   ├── globals.css             # Glassmorphism utilities, CSS themes, code highlight styles
-│   ├── layout.tsx              # Root HTML, fonts, PWA tags, security meta
-│   ├── page.tsx                # Main coordinating page & auth state manager
-│   └── robots.ts               # Robots noindex / nofollow rules
+│   │   ├── auth/route.ts               # Passcode verification, JWT cookie, brute-force guard
+│   │   ├── chat/route.ts               # Gemini streaming handler, rate limiter, input validation, memory injection
+│   │   └── memory/
+│   │       ├── route.ts                # Memory CRUD (list, create, clear all)
+│   │       ├── [id]/route.ts           # Memory update & delete with undo payload
+│   │       ├── extract/route.ts        # Non-blocking background LLM fact extraction
+│   │       ├── pending/[id]/route.ts   # Suggestion approval & rejection
+│   │       ├── export/route.ts         # JSON memory backup export
+│   │       └── import/route.ts         # JSON memory backup import with dedupe
+│   ├── globals.css                     # Glassmorphism utilities, CSS themes, code highlight styles
+│   ├── layout.tsx                      # Root HTML, fonts, PWA tags, security meta
+│   ├── page.tsx                        # Main coordinating page & auth state manager
+│   └── robots.ts                       # Robots noindex / nofollow rules
 ├── components/
-│   ├── ChatInput.tsx           # Floating glass input, auto-resize, abort button
-│   ├── ChatWindow.tsx          # Chat thread, SSE stream processor, regenerate
-│   ├── GlassBackground.tsx     # Animated gradient mesh & floating blurred orbs
-│   ├── MessageBubble.tsx       # Safe markdown rendering, code highlight, copy buttons
-│   ├── PasscodeGate.tsx        # Glass passcode unlock screen with shake feedback
-│   ├── Providers.tsx           # Next-themes and glass CSS variable synchronizer
-│   ├── SettingsDialog.tsx      # Persona, style, model, theme, backup & logout modal
-│   ├── Sidebar.tsx             # Drawer navigation, session list, search, auto-title
-│   └── ThemeToggle.tsx         # Light / Dark / System cycle toggle
+│   ├── ChatInput.tsx                   # Floating glass input, auto-resize, abort button
+│   ├── ChatWindow.tsx                  # Chat thread, SSE stream processor, temp chat toggle
+│   ├── GlassBackground.tsx             # Animated gradient mesh & floating blurred orbs
+│   ├── InspectedMemoriesModal.tsx      # Modal inspecting exact memories used for a response
+│   ├── MemorySettingsTab.tsx           # Full memory manager (modes, filters, search, edit, export/import)
+│   ├── MemoryToast.tsx                 # Floating toast notification with instant [Undo]
+│   ├── MessageBubble.tsx               # Safe markdown rendering, code highlight, brain badge
+│   ├── PasscodeGate.tsx                # Glass passcode unlock screen with shake feedback
+│   ├── Providers.tsx                   # Next-themes and glass CSS variable synchronizer
+│   ├── SettingsDialog.tsx              # Persona, style, model, theme, memory & backup modal
+│   ├── Sidebar.tsx                     # Drawer navigation, session list, search, auto-title
+│   └── ThemeToggle.tsx                 # Light / Dark / System cycle toggle
 ├── lib/
-│   ├── auth.ts                 # Constant-time comparison & JWT session management
-│   ├── buildSystemPrompt.ts    # Server-side persona & directive compiler
-│   ├── gemini.ts               # Official @google/genai SDK stream handler
-│   ├── rateLimit.ts            # Upstash sliding-window + dev in-memory fallback
-│   ├── storage.ts              # JSON backup export and import parser
-│   ├── utils.ts                # Tailwind class merge utility
-│   └── validation.ts           # Zod request hardening schemas
+│   ├── auth.ts                         # Constant-time comparison & JWT session management
+│   ├── buildSystemPrompt.ts            # Server-side persona, directive & <user_memory> compiler
+│   ├── gemini.ts                       # Official @google/genai SDK stream handler + model fallbacks
+│   ├── memoryExtract.ts                # LLM fact extraction, chat commands, regex sensitive scrubber
+│   ├── memoryModels.ts                 # Zod schemas for MemoryItem, MemoryMeta, MemorySuggestion
+│   ├── memorySelect.ts                 # Memory ranking (pinned, keywords, recency, budget clamp)
+│   ├── memoryStore.ts                  # Storage abstraction (Upstash Redis hash in prod, local JSON in dev)
+│   ├── rateLimit.ts                    # Upstash sliding-window + dev in-memory fallback
+│   ├── storage.ts                      # JSON backup export and import parser
+│   ├── utils.ts                        # Tailwind class merge utility
+│   └── validation.ts                   # Zod request hardening schemas
 ├── store/
-│   ├── useChatStore.ts         # Persistent browser session store (Zustand)
-│   └── useSettingsStore.ts     # Persistent user customization store (Zustand)
-├── middleware.ts               # Edge-safe route gatekeeper & CSRF check
-├── next.config.ts              # CSP, X-Frame-Options, Permissions-Policy headers
-└── tailwind.config.ts          # Custom glassmorphism and animation keyframes
+│   ├── useChatStore.ts                 # Persistent browser session store (Zustand)
+│   ├── useMemoryStore.ts               # Persistent memory UI & sync store (Zustand)
+│   └── useSettingsStore.ts             # Persistent user customization store (Zustand)
+├── middleware.ts                       # Edge-safe route gatekeeper & CSRF check for chat and memory
+├── next.config.ts                      # CSP, X-Frame-Options, Permissions-Policy headers
+└── tailwind.config.ts                  # Custom glassmorphism and animation keyframes
 ```
 
 ---

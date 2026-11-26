@@ -4,8 +4,8 @@ import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Only protect /api/chat route
-  if (pathname.startsWith("/api/chat")) {
+  // Protect /api/chat and /api/memory routes
+  if (pathname.startsWith("/api/chat") || pathname.startsWith("/api/memory")) {
     const origin = req.headers.get("origin");
     const host = req.headers.get("host");
 
@@ -47,5 +47,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/chat/:path*"],
+  matcher: ["/api/chat/:path*", "/api/memory/:path*"],
 };

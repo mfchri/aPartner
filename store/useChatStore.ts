@@ -7,6 +7,7 @@ export interface ChatMessageItem {
   content: string;
   timestamp: number;
   isError?: boolean;
+  usedMemoryIds?: string[];
 }
 
 export interface ChatSession {
@@ -31,6 +32,7 @@ interface ChatStoreState {
   addMessage: (sessionId: string, message: Omit<ChatMessageItem, "id" | "timestamp">) => string;
   updateLastAssistantMessage: (sessionId: string, chunk: string, replace?: boolean) => void;
   markLastAssistantMessageError: (sessionId: string, errorText: string) => void;
+  setLastAssistantMessageUsedMemories: (sessionId: string, usedMemoryIds: string[]) => void;
   removeLastAssistantMessage: (sessionId: string) => void;
   setSearchQuery: (query: string) => void;
   setIsStreaming: (isStreaming: boolean) => void;
@@ -181,6 +183,23 @@ export const useChatStore = create<ChatStoreState>()(
               };
             }
 
+            return { ...s, messages };
+          }),
+        }));
+      },
+
+      setLastAssistantMessageUsedMemories: (sessionId, usedMemoryIds) => {
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== sessionId) return s;
+            const messages = [...s.messages];
+            const lastIdx = messages.length - 1;
+            if (lastIdx >= 0 && messages[lastIdx].role === "assistant") {
+              messages[lastIdx] = {
+                ...messages[lastIdx],
+                usedMemoryIds,
+              };
+            }
             return { ...s, messages };
           }),
         }));

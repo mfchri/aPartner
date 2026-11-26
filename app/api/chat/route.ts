@@ -3,6 +3,15 @@ import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 import { checkChatRateLimit } from "@/lib/rateLimit";
 import { chatRequestSchema } from "@/lib/validation";
 import { createGeminiStream, extractChunkText, mapGeminiError } from "@/lib/gemini";
+import { getMemoryStore, generateMemoryId } from "@/lib/memoryStore";
+import { selectRelevantMemories } from "@/lib/memorySelect";
+import {
+  parseChatCommand,
+  findMatchingMemory,
+  sanitizeMemoryContent,
+  isContentSafe,
+} from "@/lib/memoryExtract";
+import { MemoryItem } from "@/lib/memoryModels";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,22 +101,109 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { messages, settings } = validation.data;
+  const { messages, settings, useMemory = true } = validation.data;
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
 
-  // 5. Connect to Gemini stream
+  let memoryBlock = "";
+  let usedMemoryIds: string[] = [];
+  let memoryCommandAction: {
+    action: "saved" | "deleted" | "none";
+    content?: string;
+    memory?: MemoryItem | null;
+  } | null = null;
+
+  // 5. Long-term memory processing & chat commands
+  if (useMemory && lastUserMessage) {
+    try {
+      const store = getMemoryStore();
+      const meta = await store.getMeta();
+
+      if (meta.mode !== "off") {
+        const allMemories = await store.list();
+
+        // Check if message is a command: "remember that ..." or "forget that ..."
+        const command = parseChatCommand(lastUserMessage.content);
+        if (command.isCommand && command.fact) {
+          if (command.type === "remember") {
+            const sanitized = sanitizeMemoryContent(command.fact);
+            const safety = isContentSafe(sanitized);
+            if (safety.safe) {
+              const now = new Date().toISOString();
+              const newMem: MemoryItem = {
+                id: generateMemoryId(),
+                content: sanitized,
+                category: "other",
+                pinned: false,
+                source: "command",
+                createdAt: now,
+                updatedAt: now,
+                useCount: 1,
+              };
+              await store.upsert(newMem);
+              memoryCommandAction = { action: "saved", content: sanitized, memory: newMem };
+            }
+          } else if (command.type === "forget") {
+            const match = findMatchingMemory(command.fact, allMemories, 0.35);
+            if (match.match) {
+              await store.delete(match.match.id);
+              memoryCommandAction = {
+                action: "deleted",
+                content: match.match.content,
+                memory: match.match,
+              };
+            }
+          }
+        }
+
+        // Select relevant memories for background prompt injection
+        const selection = await selectRelevantMemories(
+          lastUserMessage.content,
+          allMemories
+        );
+        memoryBlock = selection.formattedBlock;
+        usedMemoryIds = selection.usedMemoryIds;
+
+        // Asynchronously update usage stats
+        if (usedMemoryIds.length > 0) {
+          const nowIso = new Date().toISOString();
+          Promise.allSettled(
+            selection.selected.map((item) =>
+              store.upsert({
+                ...item,
+                lastUsedAt: nowIso,
+                useCount: (item.useCount || 0) + 1,
+              })
+            )
+          ).catch(() => {});
+        }
+      }
+    } catch (memErr) {
+      console.warn("[GlassChat] Memory retrieval warning:", memErr instanceof Error ? memErr.message : memErr);
+    }
+  }
+
+  // 6. Connect to Gemini stream
   try {
     const { stream, modelUsed } = await createGeminiStream({
       messages,
       settings,
       signal: req.signal,
+      memoryBlock,
     });
 
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
-        // Send initial metadata event
+        // Send initial metadata event with used memory IDs and command actions
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "start", model: modelUsed })}\n\n`)
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "start",
+              model: modelUsed,
+              usedMemoryIds,
+              memoryAction: memoryCommandAction,
+            })}\n\n`
+          )
         );
 
         try {

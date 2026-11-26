@@ -46,6 +46,8 @@ let redisClient: Redis | null = null;
 let chatMinuteRatelimit: Ratelimit | null = null;
 let chatDailyRatelimit: Ratelimit | null = null;
 let authBruteForceRatelimit: Ratelimit | null = null;
+let memoryApiRatelimit: Ratelimit | null = null;
+let extractApiRatelimit: Ratelimit | null = null;
 
 const hasUpstash = Boolean(
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -77,6 +79,20 @@ if (hasUpstash) {
       limiter: Ratelimit.slidingWindow(5, "15 m"),
       analytics: false,
       prefix: "rl:auth:bf",
+    });
+
+    memoryApiRatelimit = new Ratelimit({
+      redis: redisClient,
+      limiter: Ratelimit.slidingWindow(60, "1 m"),
+      analytics: false,
+      prefix: "rl:mem:api",
+    });
+
+    extractApiRatelimit = new Ratelimit({
+      redis: redisClient,
+      limiter: Ratelimit.slidingWindow(10, "1 m"),
+      analytics: false,
+      prefix: "rl:mem:ext",
     });
   } catch (err) {
     if (process.env.NODE_ENV === "production") {
@@ -217,3 +233,92 @@ export async function checkAuthBruteForce(ip: string): Promise<RateLimitResult> 
     return { success: true };
   }
 }
+
+export async function checkMemoryRateLimit(identifier: string): Promise<RateLimitResult> {
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!hasUpstash || !memoryApiRatelimit) {
+    if (isProd) {
+      return {
+        success: false,
+        error: "Rate limiting service unavailable in production.",
+      };
+    }
+    const check = memoryLimit(`mem:api:${identifier}`, 60, 60 * 1000);
+    if (!check.success) {
+      return {
+        success: false,
+        resetSeconds: check.reset,
+        error: "Memory operation rate limit exceeded (60 requests/minute).",
+      };
+    }
+    return { success: true, remaining: check.remaining };
+  }
+
+  try {
+    const res = await memoryApiRatelimit.limit(identifier);
+    if (!res.success) {
+      const resetSeconds = Math.max(1, Math.ceil((res.reset - Date.now()) / 1000));
+      return {
+        success: false,
+        remaining: res.remaining,
+        resetSeconds,
+        error: "Memory operation rate limit exceeded (60 requests/minute).",
+      };
+    }
+    return { success: true, remaining: res.remaining };
+  } catch {
+    if (isProd) {
+      return {
+        success: false,
+        error: "Rate limiting error. Request blocked.",
+      };
+    }
+    return { success: true };
+  }
+}
+
+export async function checkExtractRateLimit(identifier: string): Promise<RateLimitResult> {
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!hasUpstash || !extractApiRatelimit) {
+    if (isProd) {
+      return {
+        success: false,
+        error: "Rate limiting service unavailable in production.",
+      };
+    }
+    const check = memoryLimit(`mem:ext:${identifier}`, 10, 60 * 1000);
+    if (!check.success) {
+      return {
+        success: false,
+        resetSeconds: check.reset,
+        error: "Memory extraction rate limit reached (10 requests/minute).",
+      };
+    }
+    return { success: true, remaining: check.remaining };
+  }
+
+  try {
+    const res = await extractApiRatelimit.limit(identifier);
+    if (!res.success) {
+      const resetSeconds = Math.max(1, Math.ceil((res.reset - Date.now()) / 1000));
+      return {
+        success: false,
+        remaining: res.remaining,
+        resetSeconds,
+        error: "Memory extraction rate limit reached (10 requests/minute).",
+      };
+    }
+    return { success: true, remaining: res.remaining };
+  } catch {
+    if (isProd) {
+      return {
+        success: false,
+        error: "Rate limiting error. Request blocked.",
+      };
+    }
+    return { success: true };
+  }
+}
+

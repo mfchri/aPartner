@@ -22,6 +22,7 @@ export const chatSettingsSchema = z.object({
 export const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1).max(40),
   settings: chatSettingsSchema.optional(),
+  useMemory: z.boolean().default(true).optional(),
 }).strict();
 
 export const authRequestSchema = z.object({

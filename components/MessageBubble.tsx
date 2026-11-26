@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { Copy, Check, RotateCw, AlertTriangle, User, Bot } from "lucide-react";
+import { Copy, Check, RotateCw, AlertTriangle, User, Bot, Brain } from "lucide-react";
 import { ChatMessageItem } from "@/store/useChatStore";
+import { useMemoryStore } from "@/store/useMemoryStore";
 
 interface MessageBubbleProps {
   message: ChatMessageItem;
@@ -25,6 +26,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
+  const { setInspectedMemoryIds } = useMemoryStore();
 
   const handleCopyMessage = async () => {
     try {
@@ -163,6 +165,19 @@ export function MessageBubble({
               </>
             )}
           </motion.button>
+
+          {!isUser && message.usedMemoryIds && message.usedMemoryIds.length > 0 && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setInspectedMemoryIds(message.usedMemoryIds || null)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-500/25 transition-colors"
+              title={`This answer used ${message.usedMemoryIds.length} memorized facts`}
+            >
+              <Brain className="w-3 h-3" />
+              <span>Memory ({message.usedMemoryIds.length})</span>
+            </motion.button>
+          )}
 
           {!isUser && isLast && !isStreaming && onRegenerate && (
             <motion.button

@@ -14,7 +14,9 @@ import {
   LogOut,
   Sparkles,
   Cpu,
+  Brain,
 } from "lucide-react";
+import { MemorySettingsTab } from "@/components/MemorySettingsTab";
 import {
   useSettingsStore,
   TonePreset,
@@ -43,7 +45,7 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const settings = useSettingsStore();
   const { sessions, clearAllSessions, importSessions } = useChatStore();
-  const [activeTab, setActiveTab] = useState<"persona" | "style" | "model" | "appearance" | "data">("persona");
+  const [activeTab, setActiveTab] = useState<"persona" | "style" | "model" | "appearance" | "memory" | "data">("persona");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
@@ -89,6 +91,7 @@ export function SettingsDialog({
     { id: "style", label: "Style of Talking", icon: Sparkles },
     { id: "model", label: "Model", icon: Cpu },
     { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "memory", label: "Memory", icon: Brain },
     { id: "data", label: "Data & Security", icon: Shield },
   ] as const;
 
@@ -505,6 +508,18 @@ export function SettingsDialog({
                         ))}
                       </div>
                     </div>
+                  </motion.div>
+                )}
+
+                {activeTab === "memory" && (
+                  <motion.div
+                    key="memory"
+                    initial={{ opacity: 0, x: 8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.16 }}
+                  >
+                    <MemorySettingsTab />
                   </motion.div>
                 )}
 

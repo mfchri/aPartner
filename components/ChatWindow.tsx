@@ -7,12 +7,17 @@ import {
   Settings,
   Bot,
   AlertCircle,
+  Ghost,
 } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useMemoryStore } from "@/store/useMemoryStore";
+import { hasMemoryTrigger } from "@/lib/memoryExtract";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { ThemeToggle } from "./ThemeToggle";
+import { MemoryToast } from "./MemoryToast";
+import { InspectedMemoriesModal } from "./InspectedMemoriesModal";
 
 interface ChatWindowProps {
   onToggleSidebar: () => void;
@@ -32,15 +37,29 @@ export function ChatWindow({
     addMessage,
     updateLastAssistantMessage,
     markLastAssistantMessageError,
+    setLastAssistantMessageUsedMemories,
     removeLastAssistantMessage,
     isStreaming,
     setIsStreaming,
   } = useChatStore();
 
   const settings = useSettingsStore();
+  const {
+    isTemporaryChat,
+    setIsTemporaryChat,
+    triggerExtract,
+    handleCommandAction,
+    incrementTurnCount,
+    fetchMemories,
+  } = useMemoryStore();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [toastError, setToastError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchMemories();
+  }, [fetchMemories]);
 
   // Ensure an active session exists
   useEffect(() => {
@@ -115,6 +134,7 @@ export function ChatWindow({
         signal: controller.signal,
         body: JSON.stringify({
           messages: historyPayload,
+          useMemory: !isTemporaryChat,
           settings: {
             aiName: settings.aiName,
             userName: settings.userName,
@@ -176,8 +196,23 @@ export function ChatWindow({
             const jsonStr = trimmed.slice(6);
             try {
               const event = JSON.parse(jsonStr);
-              if (event.type === "chunk" && event.text) {
+              if (event.type === "start") {
+                if (Array.isArray(event.usedMemoryIds) && event.usedMemoryIds.length > 0) {
+                  setLastAssistantMessageUsedMemories(activeSession.id, event.usedMemoryIds);
+                }
+                if (event.memoryAction) {
+                  handleCommandAction(event.memoryAction);
+                }
+              } else if (event.type === "chunk" && event.text) {
                 updateLastAssistantMessage(activeSession.id, event.text);
+              } else if (event.type === "done") {
+                if (!isTemporaryChat) {
+                  const hasTrigger = hasMemoryTrigger(text);
+                  const isInterval = incrementTurnCount();
+                  if (hasTrigger || isInterval) {
+                    triggerExtract(historyPayload.slice(-4));
+                  }
+                }
               } else if (event.type === "error") {
                 markLastAssistantMessageError(activeSession.id, event.error);
                 setToastError(event.error);
@@ -267,6 +302,29 @@ export function ChatWindow({
 
         {/* Right Tools */}
         <div className="flex items-center gap-2">
+          {/* Temporary Chat Toggle */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsTemporaryChat(!isTemporaryChat)}
+            className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-medium border transition-all ${
+              isTemporaryChat
+                ? "bg-amber-500/20 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm"
+                : "glass-button text-muted-foreground hover:text-foreground"
+            }`}
+            title={
+              isTemporaryChat
+                ? "Temporary Chat active: Memory reading and writing are disabled"
+                : "Enable Temporary Chat (incognito / no memory)"
+            }
+            aria-label="Toggle Temporary Chat"
+          >
+            <Ghost className={`w-3.5 h-3.5 ${isTemporaryChat ? "text-amber-500 animate-pulse" : ""}`} />
+            <span className="hidden sm:inline">
+              {isTemporaryChat ? "Temporary (No Memory)" : "Temporary"}
+            </span>
+          </motion.button>
+
           <ThemeToggle />
 
           <motion.button
@@ -282,6 +340,22 @@ export function ChatWindow({
           </motion.button>
         </div>
       </header>
+
+      {/* Temporary Chat Indicator Banner */}
+      {isTemporaryChat && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 text-[11px] text-amber-700 dark:text-amber-300 flex items-center justify-between select-none">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Ghost className="w-3.5 h-3.5" />
+            <span>Temporary Chat is ON &bull; Long-term memory will not be read or updated</span>
+          </span>
+          <button
+            onClick={() => setIsTemporaryChat(false)}
+            className="underline hover:text-amber-800 dark:hover:text-amber-200"
+          >
+            Disable
+          </button>
+        </div>
+      )}
 
       {/* Animated Toast Error Alert */}
       <AnimatePresence>
@@ -331,6 +405,10 @@ export function ChatWindow({
         onStopGeneration={handleStopGeneration}
         isStreaming={isStreaming}
       />
+
+      {/* Long-Term Memory Toast & Inspection Modal */}
+      <MemoryToast />
+      <InspectedMemoriesModal />
     </div>
   );
 }

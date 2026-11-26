@@ -42,12 +42,14 @@ export interface StreamChatParams {
   messages: ChatMessage[];
   settings?: ChatSettings;
   signal?: AbortSignal;
+  memoryBlock?: string;
 }
 
 export async function createGeminiStream({
   messages,
   settings,
   signal,
+  memoryBlock,
 }: StreamChatParams) {
   const client = getGeminiClient();
   const allowed = getAllowedModels();
@@ -56,8 +58,8 @@ export async function createGeminiStream({
     selectedModel = getDefaultModel();
   }
 
-  // Build system instructions server-side from sanitized settings
-  const systemInstruction = buildSystemPrompt(settings);
+  // Build system instructions server-side from sanitized settings + long term memory
+  const systemInstruction = buildSystemPrompt(settings, memoryBlock);
 
   // Clamp temperature (0 to 2) and maxOutputTokens (100 to 2048)
   const temperature = Math.min(2, Math.max(0, settings?.temperature ?? 0.7));

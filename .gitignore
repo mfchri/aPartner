@@ -30,6 +30,10 @@ yarn-error.log*
 .env
 !.env.example
 
+# local dev data
+data/
+
+
 # vercel
 .vercel
 
